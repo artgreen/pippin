@@ -1,0 +1,139 @@
+*-----------------------------------------------------------------------------
+* cpu.macs -- CPU-portability layer. PUT by every source BEFORE its equates,
+* so the macros are defined before any code uses them. Selects 65C02 vs NMOS
+* 6502 from CPUC02 (1=65C02, 0=6502), which the including source defines first.
+* This is the single place the two CPU targets diverge.
+*
+* CRITICAL: each macro is defined ONCE, with `do CPUC02` INSIDE the body.
+* Wrapping the macro *definitions* in do/else/fin does NOT work in Merlin32
+* v1.2 beta 2 -- it registers both definitions (duplicate-macro warning) and
+* emits identical bytes for both CPUs. The conditional must live inside the
+* body, where it is evaluated at expansion time. (Verified by test assemble
+* here.)
+*
+* Why not rely on `xc off` to reject 65C02 opcodes: `xc` is documentation-only
+* in Merlin32 v1.2 beta 2 -- it accepts 65C02 opcodes regardless. The real
+* guard is tools/check_6502.py, which fails the build if any 6502 target emitted
+* a 65C02 opcode. These macros are how we make sure it never does.
+*
+* IRQ-SAFE SCRATCH. ssc_tx_byte (TX) and the LC parser/dispatch run INSIDE the
+* IRQ (PIPPIN dispatches inline in ssc_irq), preempting the foreground. The 6502
+* substitutions for _PHX/_PHY/_PLX/_PLY/_STZA/_STAIND therefore must NOT borrow a
+* foreground-live zero-page byte: doing so would corrupt foreground state and
+* crash a real //e at random. They use the bytes ProDOS preserves across IRQ
+* entry ($FA-$FF, per ProDOS TRM Ch 6; see equates-common.s ZP_T6502_*), which
+* are the designated interrupt-handler scratch and are unused elsewhere in
+* PIPPIN. The scratch byte is passed in explicitly at each site so the discipline
+* is auditable -- and so the one nested case (emit_dec_word's _PHX wrapping a JSR
+* to ssc_tx_byte, which itself does _PHX/_PHY) can use a distinct byte and not
+* clobber the outer save. On the 65C02 these all expand to native push/pull and
+* the scratch byte is unused.
+*
+* 6502 substitutions (each preserves the contract the call site relies on):
+*   _STZ a    -> lda #0 / sta a    clobbers A; used only where A is dead (it is
+*                                  always reloaded before the next use).
+*   _STZA a,t -> stx t/ldx #0/stx a/ldx t   zero a while preserving A AND Y (and
+*                                  restoring X). For the one STZ site whose A is
+*                                  live (ksw_hook :inject holds the key char).
+*   _BRA t    -> jmp t             unconditional. We use jmp (not a carry-safe
+*                                  bcs/bcc pair) because (a) PIPPIN's
+*                                  images load at FIXED orgs -- they are never
+*                                  relocated, so an absolute jmp is fine -- and
+*                                  (b) jmp preserves ALL flags and registers and
+*                                  has unbounded range, so the 6502 build's code
+*                                  growth never pushes a bra out of branch reach.
+*                                  (3 bytes vs bra's 2; the +1/site is the only
+*                                  cost, and lcrom/mainres have ample headroom.)
+*   _PHX t    -> stx t             save X preserving A AND carry (unlike txa/pha,
+*   _PLX t    -> ldx t             which would clobber the live A at every site).
+*   _PHY t    -> sty t             save Y preserving A AND carry.
+*   _PLY t    -> ldy t
+*   _STAIND p,t -> sty t/ldy #0/sta (p),y/ldy t   65C02 zp-indirect store with no
+*                                  index, emulated; preserves A and Y (Y is the
+*                                  live ring offset at the one site, lcrom.s).
+*   _JMPINDX tbl,p -> jmp (tbl,x)  65C02 indexed-indirect jump through a word
+*                                  table at tbl+X. 6502: copy tbl[X] into the
+*                                  zero-page word p, then jmp (p). X must hold the
+*                                  byte index (op*2). Used at the dispatch tail
+*                                  (a tail jump -- nothing returns -- so clobbering
+*                                  A and p is fine). p is a 2-byte ZP pointer.
+*-----------------------------------------------------------------------------
+            do    CPUC02
+            xc                            ; 65C02 (documentation-only in v1.2b2)
+            else
+            xc    off                     ; NMOS 6502 only
+            fin
+_STZ        mac
+            do    CPUC02
+            stz   ]1
+            else
+            lda   #0
+            sta   ]1
+            fin
+            <<<
+_STZA       mac
+            do    CPUC02
+            stz   ]1
+            else
+            stx   ]2
+            ldx   #0
+            stx   ]1
+            ldx   ]2
+            fin
+            <<<
+_BRA        mac
+            do    CPUC02
+            bra   ]1
+            else
+            jmp   ]1
+            fin
+            <<<
+_PHX        mac
+            do    CPUC02
+            phx
+            else
+            stx   ]1
+            fin
+            <<<
+_PLX        mac
+            do    CPUC02
+            plx
+            else
+            ldx   ]1
+            fin
+            <<<
+_PHY        mac
+            do    CPUC02
+            phy
+            else
+            sty   ]1
+            fin
+            <<<
+_PLY        mac
+            do    CPUC02
+            ply
+            else
+            ldy   ]1
+            fin
+            <<<
+_STAIND     mac
+            do    CPUC02
+            sta   (]1)
+            else
+            sty   ]2
+            ldy   #0
+            sta   (]1),y
+            ldy   ]2
+            fin
+            <<<
+_JMPINDX    mac
+            do    CPUC02
+            jmp   (]1,x)
+            else
+            lda   ]1,x
+            sta   ]2
+            lda   ]1+1,x
+            sta   ]2+1
+            jmp   (]2)
+            fin
+            <<<
