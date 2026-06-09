@@ -308,12 +308,17 @@ parse_frame
             rts
 :m_tools
 * X at method[0]='t'. method[6] = char after "tools/" -> 'l' or 'c'.
-            txa
-            clc
-            adc   #6
-            tax
+* Step one byte at a time, checking the FRAME_NL bound at each step, like
+* every other scan: a single +6 hop could jump OVER the bound when the
+* method value is shorter than "tools/x" (e.g. "t"), and the probe would
+* read a stale ring byte left by earlier traffic -- a stale 'l'/'c' there
+* would misclassify a malformed frame as tools/list / tools/call.
+            ldy   #6
+:m_adv      inx
             cpx   FRAME_NL_ADDR
             beq   :err
+            dey
+            bne   :m_adv
             lda   RX_BUF_ADDR,x
             cmp   #'l'
             beq   :m_list
