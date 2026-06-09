@@ -426,7 +426,10 @@ the memory tools from accidentally triggering hardware, both `read_memory` and
 `write_memory` reject any requested range that overlaps `$C000`-`$CFFF`, and
 both reject a range that would wrap past `$FFFF`. The range arithmetic checks the
 computed end address against the boundary, so a read that starts below `$C000`
-but whose length would run up into the I/O page is rejected as a whole.
+but whose length would run up into the I/O page is rejected as a whole. The
+computed end is an *exclusive* bound, so a range ending exactly at `$FFFF` --
+e.g. reading the NMI/RESET/IRQ vectors at `$FFFA`-`$FFFF` -- is legal; only a
+range extending beyond `$FFFF` counts as a wrap.
 
 `write_memory` additionally rejects any overlap with `$BF00`-`$BFFF`, the
 ProDOS global page (which holds `MLIACTV`, the system bit map, and other state

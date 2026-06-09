@@ -188,7 +188,7 @@ do_status_b
             jsr   emit_resp_open
             ldx   #0                    ; ver_major
             jsr   emit_byte_ck
-            ldx   #5                    ; ver_minor (v0.5)
+            ldx   #6                    ; ver_minor (v0.6)
             jsr   emit_byte_ck
             ldx   ZP_MACHINE_TYPE
             jsr   emit_byte_ck
@@ -298,7 +298,11 @@ do_sendkey_b
 
 *-----------------------------------------------------------------------------
 * compute_end -- end = addr + arg_count (count is one byte). On return C set
-* means the add wrapped past $FFFF.
+* means the add wrapped past $FFFF. `end` is an EXCLUSIVE bound (the checkers
+* allow end == $C000 / $BF00 as "last byte below the boundary"), so a sum of
+* exactly $10000 (end_lo=0; last byte $FFFF, the IRQ vector) is a legal end,
+* not a wrap -- only end > $10000 wraps. In every carry-set case start >= $FF01,
+* so the checkers' start >= $D000 short-circuit means end is never consulted.
 *-----------------------------------------------------------------------------
 compute_end
             clc
@@ -308,7 +312,11 @@ compute_end
             lda   req_addr_hi
             adc   #0
             sta   end_hi
-            rts                         ; C = wrap
+            bcc   :done                 ; end < $10000: not a wrap
+            lda   end_lo                ; C set: end >= $10000. Exactly $10000
+            bne   :done                 ;   is legal; lda/bne preserve C, so a
+            clc                         ;   true wrap returns with C still set.
+:done       rts                         ; C = wrap
 
 *-----------------------------------------------------------------------------
 * check_range_read -- forbid overlap with $C000-$CFFF or wrap.

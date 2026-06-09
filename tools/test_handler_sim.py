@@ -132,7 +132,7 @@ def test_status_block():
     st, res = decode_response(resp)
     assert st == ST_OK
     assert len(res) == 6
-    assert res[0] == 0 and res[1] == 5       # version 0.5
+    assert res[0] == 0 and res[1] == 6       # version 0.6
     assert res[2] == 0x03                    # machine (//c+)
     assert res[5] == 0x07                    # pending_key we seeded
     # res[3]=wr, res[4]=rd are ring indices after the frame was consumed (WR==RD)
@@ -268,6 +268,47 @@ def test_write_ends_exactly_at_bf00_allowed():
     st, res = decode_response(resp)
     assert st == ST_OK and res == b""
     assert mem[0xBEFF] == 0xAB and mem[0xBF00] == 0x00
+
+
+def test_read_up_to_top_of_memory_allowed():
+    # end is an exclusive bound: a read ending exactly at $10000 (last byte
+    # $FFFF, the IRQ vector) is legal, not a wrap.
+    pre = {0xFFFE: 0x34, 0xFFFF: 0x12}
+    resp, _, _ = _drive(encode_request(OP_READ, bytes([0xFE, 0xFF, 0x02])), premem=pre)
+    st, res = decode_response(resp)
+    assert st == ST_OK and res == bytes([0x34, 0x12])
+
+
+def test_read_last_byte_allowed():
+    resp, _, _ = _drive(encode_request(OP_READ, bytes([0xFF, 0xFF, 0x01])),
+                        premem={0xFFFF: 0xA7})
+    st, res = decode_response(resp)
+    assert st == ST_OK and res == bytes([0xA7])
+
+
+def test_read_wrap_past_top_forbidden():
+    # $FF02 + 255 = $10001: a true wrap past $FFFF must still be rejected.
+    resp, _, _ = _drive(encode_request(OP_READ, bytes([0x02, 0xFF, 0xFF])))
+    st, res = decode_response(resp)
+    assert st == ST_FORBIDDEN and res == b""
+
+
+def test_write_up_to_top_of_memory_allowed():
+    # $FF80 + 128 = $10000 exactly -- the last written byte is $FFFF.
+    payload = bytes((i ^ 0x5A) & 0xFF for i in range(128))
+    resp, _, mem = _drive(encode_request(OP_WRITE, bytes([0x80, 0xFF]) + payload))
+    st, res = decode_response(resp)
+    assert st == ST_OK and res == b""
+    assert mem[0xFF80] == payload[0] and mem[0xFFFF] == payload[127]
+
+
+def test_write_wrap_past_top_forbidden():
+    # $FF81 + 128 = $10001: wraps -> ST_FORBIDDEN, nothing written.
+    payload = bytes([0xEE]) * 128
+    resp, _, mem = _drive(encode_request(OP_WRITE, bytes([0x81, 0xFF]) + payload))
+    st, res = decode_response(resp)
+    assert st == ST_FORBIDDEN and res == b""
+    assert mem[0xFF81] != 0xEE
 
 
 def test_truncated_frame_no_hang_no_response():
@@ -483,6 +524,28 @@ def test_diff_write_zero_data_bad_len():
     tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05])))
     st, res = decode_response(tx)
     assert st == ST_BAD_LEN and res == b""
+
+
+def test_diff_read_top_of_memory():
+    # Exclusive-end boundary: read ending exactly at $10000 is legal on both cores.
+    pre = {0xFFFE: 0x34, 0xFFFF: 0x12}
+    tx = _assert_same(encode_request(OP_READ, bytes([0xFE, 0xFF, 0x02])), premem=pre)
+    st, res = decode_response(tx)
+    assert st == ST_OK and res == bytes([0x34, 0x12])
+
+
+def test_diff_read_wrap_past_top_forbidden():
+    tx = _assert_same(encode_request(OP_READ, bytes([0x02, 0xFF, 0xFF])))
+    st, res = decode_response(tx)
+    assert st == ST_FORBIDDEN and res == b""
+
+
+def test_diff_write_top_of_memory():
+    payload = bytes((i ^ 0x5A) & 0xFF for i in range(128))
+    tx = _assert_same(encode_request(OP_WRITE, bytes([0x80, 0xFF]) + payload),
+                      probe=(0xFF80, 0xFFFF))
+    st, res = decode_response(tx)
+    assert st == ST_OK and res == b""
 
 
 def test_diff_sendkey():

@@ -672,7 +672,7 @@ parse_int
 *
 * Wire output:
 *   {"jsonrpc":"2.0","id":<n>,"result":{"content":[{"type":"text","text":
-*    "PIPPIN 0.5 m=<mach> wr=<wr-hex> rd=<rd-hex> pw=<pw>"}],"isError":false}}<LF>
+*    "PIPPIN 0.6 m=<mach> wr=<wr-hex> rd=<rd-hex> pw=<pw>"}],"isError":false}}<LF>
 *
 * Fields:
 *   <mach>  ZP_MACHINE_TYPE   decimal 0..5 (machine enum; 5 = unenhanced //e,
@@ -707,7 +707,7 @@ do_status
             sta   ZP_PTR+1
             jsr   EMIT_DEC_WORD_ADDR
 
-* ,"result":{"content":[{"type":"text","text":"PIPPIN 0.5 m=
+* ,"result":{"content":[{"type":"text","text":"PIPPIN 0.6 m=
             lda   #<resp_status_mid
             sta   ZP_PTR
             lda   #>resp_status_mid
@@ -936,7 +936,10 @@ do_read_memory
             sta   PARSE_LEN_LO_ADDR
 
 * Range check: compute end = addr + len (16-bit).
-* Reject on wrap past $FFFF, or any overlap with $C000-$CFFF.
+* Reject on wrap past $FFFF, or any overlap with $C000-$CFFF. `end` is an
+* exclusive bound, so a sum of exactly $10000 (end_lo=0; last byte $FFFF,
+* the IRQ vector) is legal -- only end > $10000 wraps. Carry set implies
+* start >= $FF01 >= $D000, so the I/O cross check below never consults end.
             clc
             lda   PARSE_ADDR_LO_ADDR
             adc   PARSE_LEN_LO_ADDR
@@ -945,6 +948,8 @@ do_read_memory
             adc   #$00
             sta   MUL10_HI_ADDR        ; end_hi
             bcc   :rm_no_wrap
+            lda   MUL10_LO_ADDR        ; C set: end >= $10000. end == $10000
+            beq   :rm_no_wrap          ;   exactly (last byte $FFFF) is legal
             jmp   :rm_err              ; wrap past $FFFF
 :rm_no_wrap
 
@@ -1064,7 +1069,8 @@ do_write_memory
 :wm_under65
             sta   PARSE_LEN_LO_ADDR    ; PARSE_LEN_LO = byte count
 
-* Range validation: same shape as read_memory.
+* Range validation: same shape as read_memory (end == $10000 exactly is a
+* legal exclusive end -- last byte $FFFF; only end > $10000 wraps).
             clc
             lda   PARSE_ADDR_LO_ADDR
             adc   PARSE_LEN_LO_ADDR
@@ -1073,6 +1079,8 @@ do_write_memory
             adc   #$00
             sta   MUL10_HI_ADDR
             bcc   :wm_no_wrap
+            lda   MUL10_LO_ADDR        ; C set: end >= $10000. end == $10000
+            beq   :wm_no_wrap          ;   exactly (last byte $FFFF) is legal
             jmp   :wm_err              ; wrap
 :wm_no_wrap
 
@@ -1272,7 +1280,7 @@ do_error
 resp_id_prefix    asc   '{"jsonrpc":"2.0","id":',$00
 resp_ping_suffix  asc   ',"result":{}}',$0A,$00
 
-resp_status_mid    asc   ',"result":{"content":[{"type":"text","text":"PIPPIN 0.5 m=',$00
+resp_status_mid    asc   ',"result":{"content":[{"type":"text","text":"PIPPIN 0.6 m=',$00
 resp_status_wr     asc   ' wr=',$00
 resp_status_rd     asc   ' rd=',$00
 resp_status_pw     asc   ' pw=',$00
@@ -1284,7 +1292,7 @@ resp_ok_body       asc   'OK',$00
 
 resp_initialize_body
             asc   ',"result":{"protocolVersion":"2024-11-05","capabilities":'
-            asc   '{"tools":{}},"serverInfo":{"name":"pippin","version":"0.5"}}}'
+            asc   '{"tools":{}},"serverInfo":{"name":"pippin","version":"0.6"}}}'
             dfb   $0A,$00
 
 * tools/list payload. ~500 bytes of static JSON. The four tools use the
