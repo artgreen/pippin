@@ -33,7 +33,7 @@ init_ssc    _STZ   SSC_STATUS          ; reset 6551 (any write resets; don't lea
             rts
 
 banner_msg  asc   8D
-            asc   "*** PIP - MCP SERVER V0.5 ***",8D,00
+            asc   "*** PIP - MCP SERVER V0.6 ***",8D,00
 machine_msg asc   "MACHINE: ",00
 ssc_msg     asc   "SSC DETECTED IN SLOT 2",8D,00
 ready_msg   asc   "HOOKS INSTALLED. IRQS ENABLED.",8D

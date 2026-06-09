@@ -42,7 +42,7 @@ init_ssc
 * Banner messages (high-ASCII, COUT-printable, null-terminated)
 *-----------------------------------------------------------------------------
 banner_msg  asc   8D
-            asc   "*** PIPPIN - MCP SERVER V0.5 ***",8D,00
+            asc   "*** PIPPIN - MCP SERVER V0.6 ***",8D,00
 
 machine_msg asc   "MACHINE: ",00
 

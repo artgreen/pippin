@@ -11,7 +11,8 @@ time the generation counter ticks it reads the 20x20 board out of lo-res page 1
     uv run --with mcp python demos/life.py --transport tcp # via bridge on :1977
 
 Loops are bounded in the BASIC (FOR G=1 TO 100); we cannot Ctrl-C a running
-program over MCP, so to watch longer, raise N in life.bas or re-run.
+program over MCP, so to watch longer, raise the FOR G=1 TO 100 limit in
+life.bas (line 100, and MAX_GEN below to match) or re-run.
 """
 import argparse
 import asyncio
@@ -23,7 +24,7 @@ from apple import Apple, render_grid
 LIFE_BAS = Path(__file__).resolve().parent / "life.bas"
 SENTINEL = 768          # $0300: BASIC POKEs the generation number here
 BOARD = (0, 0, 20, 20)  # x0, y0, w, h
-MAX_GEN = 100           # must match FOR G=1 TO N in life.bas
+MAX_GEN = 100           # must match the FOR G=1 TO 100 limit in life.bas
 
 
 def program_lines() -> list[str]:

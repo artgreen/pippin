@@ -1,10 +1,8 @@
 """transport.py -- serial/TCP transports shared by the file-transfer tool and
 PIP's MCP front-end. TcpTransport talks to a bridge (microM8
 SSC telnet :1977 or tools/serial_bridge.sh socat); SerialTransport talks to a
-pyserial device directly (--baud). Both expose write / read_exact / read_chunk
-/ close."""
+pyserial device directly (--baud). Both expose write / read_chunk / close."""
 import socket
-import time
 
 
 class TcpTransport:
@@ -16,19 +14,6 @@ class TcpTransport:
 
     def write(self, data: bytes) -> None:
         self.sock.sendall(data)
-
-    def read_exact(self, n: int, timeout: float) -> bytes:
-        self.sock.settimeout(timeout)
-        buf = b""
-        try:
-            while len(buf) < n:
-                chunk = self.sock.recv(n - len(buf))
-                if not chunk:
-                    raise EOFError(f"connection closed after {len(buf)} of {n} bytes")
-                buf += chunk
-        except socket.timeout:
-            pass
-        return buf
 
     def read_chunk(self, maxn: int, timeout: float) -> bytes:
         """Return up to maxn bytes available within `timeout`; b'' if none."""
@@ -53,16 +38,6 @@ class SerialTransport:
     def write(self, data: bytes) -> None:
         self.ser.write(data)
         self.ser.flush()
-
-    def read_exact(self, n: int, timeout: float) -> bytes:
-        self.ser.timeout = timeout
-        buf = b""
-        deadline = time.monotonic() + timeout
-        while len(buf) < n and time.monotonic() < deadline:
-            chunk = self.ser.read(n - len(buf))
-            if chunk:
-                buf += chunk
-        return buf
 
     def read_chunk(self, maxn: int, timeout: float) -> bytes:
         """Return up to maxn bytes available within `timeout`; b'' if none."""

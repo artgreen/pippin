@@ -21,7 +21,8 @@ RELOCATE = "POKE 103,1:POKE 104,12:POKE 3072,0:NEW"
 async def reloc_ok(ap):
     await ap.type_line(RELOCATE)
     for _ in range(20):
-        if await ap.read_byte(104) == 12:
+        # check both TXTTAB bytes -- the program must really be at $0C01
+        if (await ap.read_byte(103), await ap.read_byte(104)) == (1, 12):
             return True
         await asyncio.sleep(0.2)
     return False
@@ -48,10 +49,14 @@ async def run(args):
         for off in range(0, len(blob), 128):
             chunk = blob[off:off + 128]
             await ap.write_mem(START + off, chunk)
-        back = await ap.read_mem(START, 16)
-        if bytes(back) != blob[:16]:
-            print(f"readback mismatch: {back.hex()} != {blob[:16].hex()}")
-            return 1
+        # verify the whole blob before jumping into it
+        for off in range(0, len(blob), 128):
+            chunk = blob[off:off + 128]
+            back = bytes(await ap.read_mem(START + off, len(chunk)))
+            if back != chunk:
+                print(f"readback mismatch at ${START + off:04X}: "
+                      f"{back.hex()} != {chunk.hex()}")
+                return 1
         print("  readback verified")
 
         print("CALL 24576 -> running; measuring frame rate...")

@@ -64,6 +64,10 @@ async def run(host: str, port: int, sendkey):
             print("read $C000,16 (r) -> isError=", r.isError, _text(r),
                   "(expect rejected: forbidden I/O page)")
 
+            r = await session.call_tool("r", {"a": 65534, "l": 2})
+            print("read $FFFE,2 (r) ->", _text(r),
+                  "(the IRQ vector; legal since v0.6 -- end-of-memory is not a wrap)")
+
             if sendkey is not None:
                 r = await session.call_tool("k", {"k": sendkey})
                 print(f"send_keystroke {sendkey} (k) ->", _text(r))

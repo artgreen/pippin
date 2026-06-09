@@ -186,7 +186,7 @@ names are legal MCP), which keeps frames short and the on-Apple parser cheap.
 |---|---|---|---|
 | status | `s` | none | Returns `PIPPIN <ver> m=<mach> wr=<hex> rd=<hex> pw=<n>`. `<mach>` is the detected machine code; the PIP front-end also decodes it to a name (e.g. `m=5 (unenhanced //e)`). |
 | read_memory | `r` | `a` (addr, decimal), `l` (len 1-255) | Returns the bytes as hex. Refuses any range touching `$C000-$CFFF`. |
-| write_memory | `w` | `a` (addr), `v` (lowercase hex, up to 128 chars = 64 bytes) | Writes bytes. Same I/O guard, and also refuses `$BF00-$BFFF`. |
+| write_memory | `w` | `a` (addr), `v` (lowercase hex; up to 64 bytes per write on PIPPIN, 128 on PIP) | Writes bytes. Same I/O guard, and also refuses `$BF00-$BFFF`. |
 | send_keystroke | `k` | `k` (keycode, decimal) | Queues one key; the keyboard hook injects it on the next foreground read. |
 
 ### A round trip on the wire
@@ -255,6 +255,11 @@ Host-side scripts in `tools/`. The Python ones run under
 | Path | What it does |
 |---|---|
 | `tools/pippin_mcp.py`, `tools/pippin_protocol.py` | PIP's MCP front-end and its binary codec. |
+| `tools/pippin_check.py` | End-to-end JSON-RPC check of a live PIPPIN: status, read, write, read-back, and a rejected `$C000` I/O-page read. |
+| `tools/pip_check.py` | The same end-to-end check for PIP, driven with the official MCP SDK through the front-end. |
+| `tools/pippin_bridge.py` | Raw stdin<->TCP passthrough so the MCP SDK's stdio client can drive the on-device PIPPIN build directly. |
+| `tools/fast_hwtest.py` | One-shot hardware acceptance test of PIP's binary protocol (happy path, adversarial frames, latency). |
+| `tools/bench_pip.py` | Round-trip latency benchmark: PIP's binary protocol vs PIPPIN's JSON. |
 | `tools/serial_send.py`, `tools/transport.py` | The file sender and its serial / TCP transports. |
 | `tools/serial_bridge.sh` | socat bridge between TCP `:1977` and a USB-serial dongle, for driving real hardware. |
 | `tools/check_6502.py` | The opcode-scanner gate: fails the build if any 6502 listing emitted a 65C02 opcode (`make scan`). |

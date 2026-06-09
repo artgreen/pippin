@@ -50,8 +50,12 @@ BIN_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "MAINRES-PIP.BIN
 
 
 def _load_image():
-    with open(BIN_PATH, "rb") as f:
-        return f.read()
+    # The image is a gitignored build artifact; skip (not error) in a fresh clone.
+    try:
+        with open(BIN_PATH, "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        pytest.skip("src/MAINRES-PIP.BIN not built -- run `make pip` first")
 
 
 def _make_machine(image):
@@ -128,7 +132,7 @@ def test_status_block():
     st, res = decode_response(resp)
     assert st == ST_OK
     assert len(res) == 6
-    assert res[0] == 0 and res[1] == 5       # version 0.5
+    assert res[0] == 0 and res[1] == 6       # version 0.6
     assert res[2] == 0x03                    # machine (//c+)
     assert res[5] == 0x07                    # pending_key we seeded
     # res[3]=wr, res[4]=rd are ring indices after the frame was consumed (WR==RD)
@@ -266,6 +270,47 @@ def test_write_ends_exactly_at_bf00_allowed():
     assert mem[0xBEFF] == 0xAB and mem[0xBF00] == 0x00
 
 
+def test_read_up_to_top_of_memory_allowed():
+    # end is an exclusive bound: a read ending exactly at $10000 (last byte
+    # $FFFF, the IRQ vector) is legal, not a wrap.
+    pre = {0xFFFE: 0x34, 0xFFFF: 0x12}
+    resp, _, _ = _drive(encode_request(OP_READ, bytes([0xFE, 0xFF, 0x02])), premem=pre)
+    st, res = decode_response(resp)
+    assert st == ST_OK and res == bytes([0x34, 0x12])
+
+
+def test_read_last_byte_allowed():
+    resp, _, _ = _drive(encode_request(OP_READ, bytes([0xFF, 0xFF, 0x01])),
+                        premem={0xFFFF: 0xA7})
+    st, res = decode_response(resp)
+    assert st == ST_OK and res == bytes([0xA7])
+
+
+def test_read_wrap_past_top_forbidden():
+    # $FF02 + 255 = $10001: a true wrap past $FFFF must still be rejected.
+    resp, _, _ = _drive(encode_request(OP_READ, bytes([0x02, 0xFF, 0xFF])))
+    st, res = decode_response(resp)
+    assert st == ST_FORBIDDEN and res == b""
+
+
+def test_write_up_to_top_of_memory_allowed():
+    # $FF80 + 128 = $10000 exactly -- the last written byte is $FFFF.
+    payload = bytes((i ^ 0x5A) & 0xFF for i in range(128))
+    resp, _, mem = _drive(encode_request(OP_WRITE, bytes([0x80, 0xFF]) + payload))
+    st, res = decode_response(resp)
+    assert st == ST_OK and res == b""
+    assert mem[0xFF80] == payload[0] and mem[0xFFFF] == payload[127]
+
+
+def test_write_wrap_past_top_forbidden():
+    # $FF81 + 128 = $10001: wraps -> ST_FORBIDDEN, nothing written.
+    payload = bytes([0xEE]) * 128
+    resp, _, mem = _drive(encode_request(OP_WRITE, bytes([0x81, 0xFF]) + payload))
+    st, res = decode_response(resp)
+    assert st == ST_FORBIDDEN and res == b""
+    assert mem[0xFF81] != 0xEE
+
+
 def test_truncated_frame_no_hang_no_response():
     # A5 02 03 announces a 3-arg READ (total 7 bytes) but only 5 are buffered.
     # cad_scan must see avail < total, RTS immediately, emit nothing -- no hang.
@@ -339,8 +384,12 @@ BIN6502_PATH = os.path.join(os.path.dirname(__file__), "..", "src",
 
 
 def _load_image_6502():
-    with open(BIN6502_PATH, "rb") as f:
-        return f.read()
+    # Gitignored build artifact; skip (not error) in a fresh clone.
+    try:
+        with open(BIN6502_PATH, "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        pytest.skip("src/MAINRES-PIP6502.BIN not built -- run `make pip6502` first")
 
 
 def _make_machine_cpu(image, mpu_class):
@@ -440,10 +489,61 @@ def test_diff_write():
 
 
 def test_diff_write_64_bytes():
-    # Max-size WRITE (64 bytes) -- long (ZP_PTR),y store loop on both cores.
+    # 64-byte WRITE (the JSON build's max; the binary protocol allows 128 --
+    # see the boundary tests below) -- long (ZP_PTR),y store loop on both cores.
     payload = bytes((i * 3 + 1) & 0xFF for i in range(64))
     tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05]) + payload),
                       probe=tuple(0x0500 + i for i in range(64)))
+    st, res = decode_response(tx)
+    assert st == ST_OK and res == b""
+
+
+def test_diff_write_128_bytes_max():
+    # The true binary-protocol max WRITE: 128 data bytes (ALEN=130, the largest
+    # check_alen accepts). Boundary-exact accept on both cores.
+    payload = bytes((i * 5 + 2) & 0xFF for i in range(128))
+    tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05]) + payload),
+                      probe=tuple(0x0500 + i for i in range(128)))
+    st, res = decode_response(tx)
+    assert st == ST_OK and res == b""
+
+
+def test_diff_write_129_bytes_dropped():
+    # One past the max: 129 data bytes -> ALEN=131, which the up-front global
+    # ALEN guard rejects BEFORE dispatch (drop the A5, resync, no response --
+    # same contract as the ALEN-wrap test). Nothing may be written.
+    payload = bytes([0x77]) * 129
+    tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05]) + payload),
+                      probe=(0x0500, 0x0580))
+    assert tx == b""
+
+
+def test_diff_write_zero_data_bad_len():
+    # WRITE with address but no data (ALEN=2 < 3) -> per-opcode check_alen
+    # rejects with ST_BAD_LEN.
+    tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05])))
+    st, res = decode_response(tx)
+    assert st == ST_BAD_LEN and res == b""
+
+
+def test_diff_read_top_of_memory():
+    # Exclusive-end boundary: read ending exactly at $10000 is legal on both cores.
+    pre = {0xFFFE: 0x34, 0xFFFF: 0x12}
+    tx = _assert_same(encode_request(OP_READ, bytes([0xFE, 0xFF, 0x02])), premem=pre)
+    st, res = decode_response(tx)
+    assert st == ST_OK and res == bytes([0x34, 0x12])
+
+
+def test_diff_read_wrap_past_top_forbidden():
+    tx = _assert_same(encode_request(OP_READ, bytes([0x02, 0xFF, 0xFF])))
+    st, res = decode_response(tx)
+    assert st == ST_FORBIDDEN and res == b""
+
+
+def test_diff_write_top_of_memory():
+    payload = bytes((i ^ 0x5A) & 0xFF for i in range(128))
+    tx = _assert_same(encode_request(OP_WRITE, bytes([0x80, 0xFF]) + payload),
+                      probe=(0xFF80, 0xFFFF))
     st, res = decode_response(tx)
     assert st == ST_OK and res == b""
 

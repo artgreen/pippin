@@ -5,8 +5,8 @@ Point it at a live endpoint (TCP :1977 bridge/emulator, or a serial device) with
 the matching build installed, and pick the protocol the installed binary speaks:
 
     # with PIP installed:
-    uv run --with mcp tools/bench_pip.py --protocol binary --op status --iters 30
-    uv run --with mcp tools/bench_pip.py --protocol binary --op read --addr 1024 --len 16
+    uv run tools/bench_pip.py --protocol binary --op status --iters 30
+    uv run tools/bench_pip.py --protocol binary --op read --addr 1024 --len 16
 
     # with PIPPIN installed:
     uv run tools/bench_pip.py --protocol json --op status --iters 30

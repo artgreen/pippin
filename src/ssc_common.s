@@ -1,9 +1,9 @@
 *-----------------------------------------------------------------------------
 * ssc_common.s -- SSC routine(s) shared verbatim by both MAIN_RES builds.
 *
-* PUT by src/mainres.s (JSON path) and src/mainres-pip.s (fast/binary path)
-* so the code has ONE source of truth instead of two copies that silently
-* drift. Holds no ORG/equates of its own: the including file must `put` its
+* PUT by the mainres-*.s drivers (JSON path) and the mainres-pip-*.s drivers
+* (fast/binary path) so the code has ONE source of truth instead of two copies
+* that silently drift. Holds no ORG/equates of its own: the including file must `put` its
 * equates first (for SSC_STATUS / SSC_DATA / ZP_RX_WR) and must define the
 * rx_buf label (resolved here by forward reference). ssc_tx_byte is position-
 * independent -- callers JSR by label -- so it may sit at any address in

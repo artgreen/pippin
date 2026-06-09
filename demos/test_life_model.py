@@ -40,8 +40,9 @@ def test_flat_blinker_oscillates():
 
 
 def test_flat_respects_dead_edges():
-    # A glider in the corner eventually slides off and vanishes (no wrap),
-    # matching the reference's dead-edge behaviour.
+    # A glider seeded against the corner, stepped with dead edges (no wrap):
+    # its first steps exercise the border cells, and the flat model must match
+    # the reference's dead-edge behaviour cell-for-cell.
     board = cr.from_coords(W, W, [(1, 0), (2, 1), (0, 2), (1, 2), (2, 2)])
     flat = board_to_flat(board)
     for _ in range(8):

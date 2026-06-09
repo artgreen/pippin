@@ -50,7 +50,7 @@
 *   _PLY t    -> ldy t
 *   _STAIND p,t -> sty t/ldy #0/sta (p),y/ldy t   65C02 zp-indirect store with no
 *                                  index, emulated; preserves A and Y (Y is the
-*                                  live ring offset at the one site, lcrom.s).
+*                                  live ring offset at the one site, lcrom_body.s).
 *   _JMPINDX tbl,p -> jmp (tbl,x)  65C02 indexed-indirect jump through a word
 *                                  table at tbl+X. 6502: copy tbl[X] into the
 *                                  zero-page word p, then jmp (p). X must hold the

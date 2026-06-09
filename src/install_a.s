@@ -198,9 +198,11 @@ copy_lcrom
 *-----------------------------------------------------------------------------
 * install_hooks -- install both KSW hooks.
 *
-* The ROM-level $38/$39 KSW vector is hooked first (chained to whatever
-* was there -- typically ROM's $FD1B KEYIN). This is sufficient for the
-* bare-ProDOS path where there's no BASIC.SYSTEM intercepting input.
+* The ROM-level $38/$39 KSW vector is hooked first (the previous vector --
+* typically ROM's $FD1B KEYIN -- is stashed for a future teardown, but the
+* hook polls and RTSes rather than chaining; see ksw_hook.s). This is
+* sufficient for the bare-ProDOS path where there's no BASIC.SYSTEM
+* intercepting input.
 *
 * If BASIC.SYSTEM is resident (BASIC_ENTRY = $4C), we MUST also hook
 * its higher-level $BE32 input vector. Two reasons:

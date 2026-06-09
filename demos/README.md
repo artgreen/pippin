@@ -6,7 +6,7 @@
 > Conway's Game of Life three different ways: first in Applesoft with lo-res
 > color; then again with no array at all, the board living in the text pages,
 > hardware page-flipped like a hi-res demo; and finally in hand-written 65C02
-> assembly that out-ran the BASIC by roughly five hundred to one. Every
+> assembly that out-ran the BASIC by two orders of magnitude. Every
 > keystroke, every screen read, every poked byte crossed that wire as a real
 > tool call, and every risky line was verified in a simulator before it touched
 > the metal. The humans supplied the hardware, the wit, and the occasional
@@ -18,7 +18,7 @@
 - [countdown.py](#countdownpy): the "hello world", type a program, run it, read it back
 - [life.py](#lifepy): Conway's Game of Life in Applesoft, lo-res color
 - [life_flip.py](#life_flippy): the page-flipped version, with no array at all
-- [asm/](#asm): Conway in 65C02 assembly, ~500x faster
+- [asm/](#asm): Conway in 65C02 assembly, ~100-200x faster
 - [Tests](#tests): everything host-side is verified offline
 
 All of it drives `PIP` (the host-assisted build) over MCP. The pieces are
@@ -90,9 +90,14 @@ the `+1` encoding, and page alternation against `conway_ref` offline.
 
 ## asm/
 
-The same Game of Life, but native code instead of Applesoft. On a real //c+ it
-runs at about 66 generations/sec (faster still when the host isn't polling it),
-versus about 8 s/gen for the BASIC on the same machine, roughly a 500x speedup.
+The same Game of Life, but native code instead of Applesoft. One generation
+(compute + render) is about 98,000 cycles in the py65 simulator -- ~25 ms on the
+//c+'s 4 MHz 65C02, versus the ~1.9-4.8 s/generation of the two BASICs
+([life-code.md](life-code.md)): roughly a 100-200x speedup. The shipped binary
+deliberately paces itself between frames so the demo is watchable rather than a
+blur (`DLYCT` at the end of `life.s`; the default `$04` burns ~1.3M cycles per
+frame, about 3 generations/sec on the //c+ -- patch it smaller, or remove the
+`JSR DELAY`s, for full speed).
 The board lives in two linear bordered buffers (`$7000`/`$7800`), one generation
 is 8 `ADC (zp),Y` per cell, and each frame is rendered to the interleaved text
 screen and hardware page-flipped. Dead edges live in the off-screen buffer border,

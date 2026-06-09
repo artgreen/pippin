@@ -5,17 +5,17 @@ PING gate -> STATUS -> READ -> WRITE+readback -> SENDKEY -> adversarial frames
 -> latency. Single connection on purpose (survives a no-fork socat). Bails
 cleanly if the PING gate fails (e.g. wrong build installed).
 
-    uv run --with mcp tools/fast_hwtest.py            # tcp :1977
-    uv run --with mcp tools/fast_hwtest.py --port 1977
+    uv run tools/fast_hwtest.py            # tcp :1977
+    uv run tools/fast_hwtest.py --port 1977
 """
 import argparse
+import os
 import statistics
 import sys
 import time
 
-sys.path.insert(0, "tools")
-from transport import TcpTransport, SerialTransport          # noqa: E402
-from pippin_mcp import PippinClient, _read_response_frame     # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pippin_mcp import PippinClient, _make_transport, _read_response_frame  # noqa: E402
 from pippin_protocol import (                                 # noqa: E402
     encode_request, decode_response,
     OP_READ, ST_OK, ST_BAD_CK, ST_BAD_OP, ST_FORBIDDEN, ST_BAD_LEN,
@@ -27,18 +27,15 @@ def main(argv=None):
     p.add_argument("--transport", choices=["tcp", "serial"], default="tcp")
     p.add_argument("--host", default="localhost")
     p.add_argument("--port", type=int, default=1977)
-    p.add_argument("--device", default=None)
+    p.add_argument("--device", default=None,
+                   help="serial device (serial transport); auto-detects "
+                        "/dev/cu.PL2303* / /dev/cu.usbserial-* if omitted")
     p.add_argument("--baud", type=int, default=9600)
     p.add_argument("--skip-sendkey", action="store_true",
                    help="don't inject a keystroke into the live prompt")
     args = p.parse_args(argv)
 
-    if args.transport == "tcp":
-        t = TcpTransport(args.host, args.port)
-    else:
-        if not args.device:
-            p.error("--transport serial requires --device (e.g. /dev/cu.usbserial-XXXX)")
-        t = SerialTransport(args.device, args.baud)
+    t = _make_transport(args)             # same TCP/serial auto-detect as the front-end
     c = PippinClient(t)
 
     def raw(frame, label, expect_st):

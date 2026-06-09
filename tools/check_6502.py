@@ -10,8 +10,7 @@ gate for the 6502 path.
 
 It reads the opcode (first object byte of each emitted instruction) straight
 from Merlin32's own decoded listing, so it never mistakes an operand or data
-byte for an opcode. Pure stdlib -- no py65 needed (the set is cross-checked
-against py65 in tests/test_check_6502.py).
+byte for an opcode. Pure stdlib -- no py65 needed.
 
 Usage:
     check_6502.py LISTING.txt [LISTING2.txt ...]
@@ -21,7 +20,6 @@ import re
 import sys
 
 # 65C02 / Rockwell opcodes that do NOT exist on the NMOS 6502 -> mnemonic.
-# (Cross-checked against py65's 6502 and 65C02 cores in tests/test_check_6502.py.)
 C02_ONLY = {
     0x64: "stz zp", 0x74: "stz zp,x", 0x9C: "stz abs", 0x9E: "stz abs,x",
     0x80: "bra", 0x5A: "phy", 0x7A: "ply", 0xDA: "phx", 0xFA: "plx",

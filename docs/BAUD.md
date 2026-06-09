@@ -6,7 +6,14 @@ patch that byte (default `$1E`) to a value from the table below in both places,
 so the receiver and the live session agree:
 
 - `RECV.BIN` (loads at `$0801`): `$0819` (the `.6502` build: `$0823`).
-- the installer (loads at `$2000`): `$21DF` (the `.6502` build: `$21F8`).
+- the installer (loads at `$2000`); the address depends on the build:
+
+  | Build | Patch address |
+  |---|---|
+  | `PIPPIN` | `$21DF` |
+  | `PIPPIN.6502` | `$21F8` |
+  | `PIP` | `$21AB` |
+  | `PIP.6502` | `$21C8` |
 
 19200 (`$1F`) runs reliably on a //c+ over a real USB-serial link; drop to 300
 (`$16`) for an original-ROM //c with the known 9600-baud timing bug.

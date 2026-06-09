@@ -15,10 +15,10 @@ J_KEY           equ   ZP_PTR      ; JSON parser: ptr to target key ($06/$07),
 *                                 ; via parse_int before use, so reuse is safe.
 
 * State vars block, pinned to a known address (STATE_BASE_ADDR, in
-* equates-common.s) so install.s can write into them by absolute address.
-* mainres.s code references the same bytes by label and the addresses match.
-* If the trampoline grows past STATE_BASE_ADDR, bump it (in equates-common.s)
-* and re-test install.s writes. NOTE: this layout differs from the fast
+* equates-common.s) so the install body can write into them by absolute
+* address. The mainres body references the same bytes by label and the
+* addresses match. If the trampoline grows past STATE_BASE_ADDR, bump it (in
+* equates-common.s) and re-test the install writes. NOTE: this layout differs from the fast
 * path's -- equates-pip.s has no SAVED_LC_READ / PARSE_ID_* bytes, so its
 * SAVED_ROM_LO/HI land at STATE_BASE_ADDR+3/+4 instead of +8/+9.
 HOOKED_BASIC_ADDR   equ STATE_BASE_ADDR     ; 1 if $BE32 hooked, 0 if only $38 hooked
@@ -51,9 +51,9 @@ FRAME_NL_ADDR      equ $9097      ; JSON parser: frame '\n' ring offset (bound)
 JDEPTH_ADDR        equ $9098      ; JSON parser: skip_value nesting depth
 PTMP_ADDR          equ $9099      ; JSON parser: object offset across find_key calls
 
-SSC_TX_STRING_ADDR equ $9100       ; ssc_tx_string entry (forced via DS pad in mainres.s)
-EMIT_HEX_BYTE_ADDR equ $9120       ; emit_hex_byte entry (forced via DS pad in mainres.s)
-EMIT_DEC_WORD_ADDR equ $9140       ; emit_dec_word entry (forced via DS pad in mainres.s)
+SSC_TX_STRING_ADDR equ $9100       ; ssc_tx_string entry (forced via DS pad in mainres_b.s)
+EMIT_HEX_BYTE_ADDR equ $9120       ; emit_hex_byte entry (forced via DS pad in mainres_b.s)
+EMIT_DEC_WORD_ADDR equ $9140       ; emit_dec_word entry (forced via DS pad in mainres_b.s)
 
 *---- LC bank 2 layout -------------------------------------------------------
 * Language Card RAM bank 2 holds the parser + tool handlers + RODATA.

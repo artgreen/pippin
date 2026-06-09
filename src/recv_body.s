@@ -296,7 +296,7 @@ get_byte
 * putc -- send A over SSC, paced (TDRE-bug workaround; see spec / mainres.s).
 *   The genuine/WDC 6551 reads TDRE ready prematurely, so we poll then PACE
 *   with a fixed delay >= 1 char-time. This is the only Apple->Mac TX path.
-*   Delay ~5600 cyc: ~1.4ms @4MHz, ~22ms @1MHz -- one byte, negligible.
+*   Delay ~5600 cyc: ~1.4ms @4MHz, ~5.6ms @1MHz -- one byte, negligible.
 *   In: A = byte. Clobbers A. X,Y preserved.
 *-----------------------------------------------------------------------------
 putc

@@ -20,13 +20,18 @@ For an unenhanced //e (an NMOS 6502) use the `.6502` builds instead:
 make recv                                     # build RECV.BIN (the receiver)
 # transfer RECV.BIN to the Apple once; after that serial_send.py does the transfers
 make                                          # build PIPPIN
+tools/serial_bridge.sh                        # socat bridge: TCP :1977 <-> the dongle
+#                                               (own terminal; leave it running)
 # on the Apple:  BRUN RECV.BIN  (it waits, receiving into $2000)
-uv run tools/serial_send.py PIPPIN            # blast it across the wire
+uv run tools/serial_send.py PIPPIN            # blast it across the wire (via the bridge)
 # on the Apple:  CALL 8192                     (run the installer; PIPPIN goes resident)
 #                (or BSAVE it, then run)
-tools/serial_bridge.sh                        # socat bridge: TCP :1977 <-> the dongle
 uv run --with mcp tools/pippin_check.py       # drive PIPPIN end to end
 ```
+
+(`serial_send.py` talks to the bridge on `:1977` by default; to skip the bridge
+and hit the dongle directly, use
+`uv run --with pyserial tools/serial_send.py --transport serial PIPPIN`.)
 
 (`pippin_check.py` drives PIPPIN directly over the wire. For
 the PIP build, run its front-end instead: `uv run --with mcp python
