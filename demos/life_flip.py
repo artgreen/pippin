@@ -44,15 +44,20 @@ async def read_board(ap: Apple, gen: int) -> list[list[int]]:
     return rows
 
 
-async def wait_for(ap: Apple, target: int, poll: float, timeout: float) -> int | None:
+async def wait_for(ap: Apple, target: int, poll: float, timeout: float,
+                   exact: bool = False) -> int | None:
     """Poll the sentinel until it reaches `target`. Matches >= rather than ==
     so a generation that ticks past between polls (the BASIC runs ~1.9 s/gen
     while each rendered frame costs 22 read round-trips) can't strand the wait.
-    Returns the observed generation, or None on timeout."""
+    Returns the observed generation, or None on timeout.
+
+    `exact` is for the initial sync on 0: any stale byte satisfies >= 0, so
+    the caller arms the sentinel with a value the BASIC never writes and then
+    waits for the exact 0 that line 70 pokes once the pages are seeded."""
     waited = 0.0
     while waited < timeout:
         gen = await ap.read_byte(SENTINEL)
-        if gen >= target:
+        if (gen == target) if exact else (gen >= target):
             return gen
         await asyncio.sleep(poll)
         waited += poll
@@ -83,9 +88,13 @@ async def run(args) -> int:
         await ap.type_program(program_lines())
 
         print("RUN -- clearing both pages and seeding (a few seconds)...\n")
+        # Arm the sentinel with a value the BASIC never writes (gens are
+        # 0..100) so a stale generation count from a previous run can't
+        # satisfy the initial wait before the new run has seeded the pages.
+        await ap.write_mem(SENTINEL, bytes([255]))
         await ap.type_line("RUN")
 
-        if await wait_for(ap, 0, args.poll, timeout=40) is None:
+        if await wait_for(ap, 0, args.poll, timeout=40, exact=True) is None:
             print("never reached initial frame; check the Apple's screen.")
             return 1
 
