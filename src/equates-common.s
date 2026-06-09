@@ -54,8 +54,15 @@ ZP_T6502_C      equ   $FC
 ZP_T6502_D      equ   $FF
 ZP_T6502_PTR    equ   $FA         ; (uses $FA/$FB)
 
-* Install-time scratch (clobbered freely before CLI)
-ZP_PTR          equ   $06         ; 16-bit pointer for print routines
+* 16-bit pointer pair, used by the install-time prints AND by the runtime
+* handlers inside the IRQ (string TX, the read/write loops, parse_int output).
+* The resident claims $06/$07 for its lifetime and does NOT save/restore them
+* around dispatch: foreground ML that uses these bytes will see them clobbered
+* whenever a frame dispatches. Accepted trade-off (ProDOS only preserves
+* $FA-$FF, which the 6502 macro scratch already owns); a foreground program
+* sharing the machine with PIPPIN should avoid $06/$07 -- as demos/asm/life.s
+* does.
+ZP_PTR          equ   $06         ; 16-bit pointer (install prints + IRQ handlers)
 ZP_PTR_H        equ   $07
 
 *---- Machine type codes -----------------------------------------------------
