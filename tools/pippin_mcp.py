@@ -68,6 +68,17 @@ class PippinClient:
     def __init__(self, transport):
         self.t = transport
 
+    def _drain_stale(self):
+        # Discard any buffered bytes before transmitting. Responses carry no
+        # op/sequence echo, so a reply that arrives after RESP_TIMEOUT (the
+        # Apple was briefly busy) would otherwise sit in the buffer and be
+        # decoded as the answer to the NEXT, unrelated request. Draining
+        # before each transmit closes that misattribution window. The short
+        # timeout is a fixed cost on every exchange: a stale frame is either
+        # already buffered (drained on the first read) or it isn't.
+        while self.t.read_chunk(256, timeout=0.02):
+            pass
+
     def exchange(self, op: int, args: bytes) -> tuple[int, bytes]:
         # Retransmit on a corrupted/absent response or ST=01 (Apple saw a bad
         # request checksum). READ/STATUS/PING/WRITE are idempotent; SENDKEY is
@@ -78,6 +89,7 @@ class PippinClient:
         frame = encode_request(op, args)
         last = None
         for _ in range(MAX_RETRIES):
+            self._drain_stale()
             self.t.write(frame)
             try:
                 raw = _read_response_frame(self.t)
@@ -100,6 +112,8 @@ class PippinClient:
     # --- tool cores (host-side validation, then wire) ---
     def status(self) -> str:
         b = self._checked(OP_STATUS, b"")
+        if len(b) != 6:
+            raise McpToolError(f"malformed status response: {len(b)} bytes, expected 6")
         mach = MACHINE_NAMES.get(b[2], f"unknown (${b[2]:02X})")
         return (f"PIP {b[0]}.{b[1]} m={b[2]} ({mach}) "
                 f"wr=${b[3]:02X} rd=${b[4]:02X} key=${b[5]:02X}")
@@ -110,6 +124,8 @@ class PippinClient:
         if not (1 <= length <= 255):
             raise McpToolError("length out of 1..255")
         res = self._checked(OP_READ, bytes([address & 0xFF, address >> 8, length]))
+        if len(res) != length:
+            raise McpToolError(f"short read: got {len(res)} of {length} bytes")
         return res.hex()
 
     def write_memory(self, address: int, data_hex: str) -> str:

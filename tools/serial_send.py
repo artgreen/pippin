@@ -90,7 +90,8 @@ def main(argv=None) -> int:
     p.add_argument("--host", default="localhost", help="TCP host (tcp transport)")
     p.add_argument("--port", type=int, default=1977, help="TCP port (tcp transport)")
     p.add_argument("--device", default=None,
-                   help="serial device (serial transport); auto-detects /dev/cu.PL2303* if omitted")
+                   help="serial device (serial transport); auto-detects "
+                        "/dev/cu.PL2303* / /dev/cu.usbserial-* if omitted")
     p.add_argument("--baud", type=int, default=9600,
                    help="line speed for serial transport (Apple is fixed at 9600; "
                         "mismatch deliberately for troubleshooting)")

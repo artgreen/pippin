@@ -44,14 +44,19 @@ async def read_board(ap: Apple, gen: int) -> list[list[int]]:
     return rows
 
 
-async def wait_for(ap: Apple, target: int, poll: float, timeout: float) -> bool:
+async def wait_for(ap: Apple, target: int, poll: float, timeout: float) -> int | None:
+    """Poll the sentinel until it reaches `target`. Matches >= rather than ==
+    so a generation that ticks past between polls (the BASIC runs ~1.9 s/gen
+    while each rendered frame costs 22 read round-trips) can't strand the wait.
+    Returns the observed generation, or None on timeout."""
     waited = 0.0
     while waited < timeout:
-        if await ap.read_byte(SENTINEL) == target:
-            return True
+        gen = await ap.read_byte(SENTINEL)
+        if gen >= target:
+            return gen
         await asyncio.sleep(poll)
         waited += poll
-    return False
+    return None
 
 
 async def run(args) -> int:
@@ -80,20 +85,29 @@ async def run(args) -> int:
         print("RUN -- clearing both pages and seeding (a few seconds)...\n")
         await ap.type_line("RUN")
 
-        if not await wait_for(ap, 0, args.poll, timeout=40):
+        if await wait_for(ap, 0, args.poll, timeout=40) is None:
             print("never reached initial frame; check the Apple's screen.")
             return 1
 
-        for g in range(1, args.gens + 1):
-            if not await wait_for(ap, g, args.poll, timeout=60):
-                print(f"generation {g}: timeout")
+        shown = 0
+        target = 1
+        while shown < args.gens:
+            gen = await wait_for(ap, target, args.poll, timeout=60)
+            if gen is None:
+                print(f"generation {target}: timeout")
                 return 1
-            board = await read_board(ap, g)
+            # Render the generation actually observed (it may have skipped past
+            # `target`); its parity picks the page that is really displayed.
+            board = await read_board(ap, gen)
+            after = await ap.read_byte(SENTINEL)
             live = sum(sum(r) for r in board)
-            page = 2 if g % 2 else 1
-            print(f"=== generation {g}  ({live} alive)  [showing page {page}] ===")
+            page = 2 if gen % 2 else 1
+            torn = "" if after == gen else f"  (advanced to {after} mid-read; may be torn)"
+            print(f"=== generation {gen}  ({live} alive)  [showing page {page}]{torn} ===")
             print(render_grid(board, alive="#", dead="."))
             print()
+            shown += 1
+            target = gen + 1
         print(f"(continues to generation {MAX_GEN} on the Apple...)")
         return 0
 

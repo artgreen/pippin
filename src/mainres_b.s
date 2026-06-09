@@ -8,8 +8,8 @@
 *-----------------------------------------------------------------------------
 * ssc_tx_string -- emit null-terminated string at ZP_PTR over the wire.
 *
-* Pinned to $9100 (matches SSC_TX_STRING_ADDR in equates.s) so install.s
-* and other sources outside mainres can JSR by absolute address without
+* Pinned to $9100 (matches SSC_TX_STRING_ADDR in equates.s) so the install
+* body and other sources outside mainres can JSR by absolute address without
 * worrying about layout drift inside mainres.
 *
 * Caller stores string address in ZP_PTR / ZP_PTR+1, then JSRs here.

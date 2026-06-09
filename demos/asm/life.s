@@ -1,7 +1,9 @@
 * life.s -- Conway's Game of Life in 65C02 assembly for the Apple II.
 *
 * Same result as demos/life_flip.bas (full-screen text Conway, page-flipped,
-* dead edges, random soup) but in native code -- fast (~66 gen/s on a //c+).
+* dead edges, random soup) but in native code -- ~98k cycles per generation
+* (~25 ms on the //c+'s 4 MHz 65C02). The shipped DLYCT of $04 paces the loop
+* to ~3 gen/s so it's watchable; shrink it (or drop the JSR DELAYs) for speed.
 * Logic verified in the 6502-codegen skill's simulator before any deploy.
 *
 * Build / transfer (see build_life.py):

@@ -50,8 +50,12 @@ BIN_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "MAINRES-PIP.BIN
 
 
 def _load_image():
-    with open(BIN_PATH, "rb") as f:
-        return f.read()
+    # The image is a gitignored build artifact; skip (not error) in a fresh clone.
+    try:
+        with open(BIN_PATH, "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        pytest.skip("src/MAINRES-PIP.BIN not built -- run `make pip` first")
 
 
 def _make_machine(image):
@@ -339,8 +343,12 @@ BIN6502_PATH = os.path.join(os.path.dirname(__file__), "..", "src",
 
 
 def _load_image_6502():
-    with open(BIN6502_PATH, "rb") as f:
-        return f.read()
+    # Gitignored build artifact; skip (not error) in a fresh clone.
+    try:
+        with open(BIN6502_PATH, "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        pytest.skip("src/MAINRES-PIP6502.BIN not built -- run `make pip6502` first")
 
 
 def _make_machine_cpu(image, mpu_class):
@@ -440,12 +448,41 @@ def test_diff_write():
 
 
 def test_diff_write_64_bytes():
-    # Max-size WRITE (64 bytes) -- long (ZP_PTR),y store loop on both cores.
+    # 64-byte WRITE (the JSON build's max; the binary protocol allows 128 --
+    # see the boundary tests below) -- long (ZP_PTR),y store loop on both cores.
     payload = bytes((i * 3 + 1) & 0xFF for i in range(64))
     tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05]) + payload),
                       probe=tuple(0x0500 + i for i in range(64)))
     st, res = decode_response(tx)
     assert st == ST_OK and res == b""
+
+
+def test_diff_write_128_bytes_max():
+    # The true binary-protocol max WRITE: 128 data bytes (ALEN=130, the largest
+    # check_alen accepts). Boundary-exact accept on both cores.
+    payload = bytes((i * 5 + 2) & 0xFF for i in range(128))
+    tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05]) + payload),
+                      probe=tuple(0x0500 + i for i in range(128)))
+    st, res = decode_response(tx)
+    assert st == ST_OK and res == b""
+
+
+def test_diff_write_129_bytes_dropped():
+    # One past the max: 129 data bytes -> ALEN=131, which the up-front global
+    # ALEN guard rejects BEFORE dispatch (drop the A5, resync, no response --
+    # same contract as the ALEN-wrap test). Nothing may be written.
+    payload = bytes([0x77]) * 129
+    tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05]) + payload),
+                      probe=(0x0500, 0x0580))
+    assert tx == b""
+
+
+def test_diff_write_zero_data_bad_len():
+    # WRITE with address but no data (ALEN=2 < 3) -> per-opcode check_alen
+    # rejects with ST_BAD_LEN.
+    tx = _assert_same(encode_request(OP_WRITE, bytes([0x00, 0x05])))
+    st, res = decode_response(tx)
+    assert st == ST_BAD_LEN and res == b""
 
 
 def test_diff_sendkey():

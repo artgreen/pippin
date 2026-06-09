@@ -675,7 +675,8 @@ parse_int
 *    "PIPPIN 0.5 m=<mach> wr=<wr-hex> rd=<rd-hex> pw=<pw>"}],"isError":false}}<LF>
 *
 * Fields:
-*   <mach>  ZP_MACHINE_TYPE   decimal 0..4 (machine enum)
+*   <mach>  ZP_MACHINE_TYPE   decimal 0..5 (machine enum; 5 = unenhanced //e,
+*                              reported by the 6502 build only)
 *   <wr>    ZP_RX_WR           2-char hex (ring write index)
 *   <rd>    ZP_RX_RD           2-char hex (ring read index)
 *   <pw>    ZP_PENDING_WORK    decimal 0/1 (always 0 since step 4b moved
@@ -713,7 +714,7 @@ do_status
             sta   ZP_PTR+1
             jsr   SSC_TX_STRING_ADDR
 
-* machine type (0..4) as decimal
+* machine type (0..5) as decimal
             lda   ZP_MACHINE_TYPE
             sta   ZP_PTR
             _STZ   ZP_PTR+1

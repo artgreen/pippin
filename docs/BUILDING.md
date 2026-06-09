@@ -78,8 +78,8 @@ both CPUs (verified by test assemble).
 regardless, so the assembler will *not* catch a stray `stz`/`bra` in a 6502
 build. [`tools/check_6502.py`](../tools/check_6502.py) is the real gate: it reads
 each 6502 build's listing and fails if any emitted opcode is outside the legal
-NMOS-6502 set (its 65C02-only set is cross-checked against py65). `make scan`
-runs it over every 6502 listing, including `RECV.6502`.
+NMOS-6502 set. `make scan` runs it over every 6502 listing, including
+`RECV.6502`.
 
 ### Machine detection and byte-identity
 
