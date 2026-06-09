@@ -273,6 +273,12 @@ find_key
 *         Y clobbered.
 *-----------------------------------------------------------------------------
 parse_frame
+* Reset the stashed request id first: error paths bail before capture_id
+* runs, and do_error emits PARSE_ID as-is -- without the reset, an error
+* reply for an unparseable frame echoes the id of an EARLIER request, and
+* an id-matching JSON-RPC client mis-correlates. Unparseable -> id 0.
+            _STZ   PARSE_ID_LO_ADDR
+            _STZ   PARSE_ID_HI_ADDR
 * Order-independent scan. find_key locates top-level "method" and "id"
 * regardless of key order; tools/call descends into params/arguments.
 * X = ring cursor throughout (find_key/skip_value advance it). Bounded by

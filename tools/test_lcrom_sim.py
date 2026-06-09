@@ -282,6 +282,20 @@ def test_unknown_method_rejected():
     assert resp["result"]["isError"] is True
 
 
+def test_error_reply_does_not_echo_stale_id():
+    # A parse error bails before capture_id runs, so the stashed PARSE_ID from
+    # an earlier request used to leak into the error envelope -- an id-matching
+    # client would mis-correlate. An unparseable frame must report id 0.
+    frames = (_rpc({"jsonrpc": "2.0", "id": 9, "method": "ping"})
+              + b'{"id":1,"method":"t"}\n')
+    tx, _, _ = _drive(frames, ring_fill=ord("l"))
+    parts = tx.split(b"\n")
+    r1, r2 = json.loads(parts[0]), json.loads(parts[1])
+    assert r1["id"] == 9
+    assert r2["result"]["isError"] is True
+    assert r2["id"] == 0, f"error reply echoed a stale id: {r2['id']}"
+
+
 def test_two_frames_drained_in_one_call():
     # parse_dispatch loops until the ring is drained: two queued frames yield
     # two newline-terminated responses in order.
